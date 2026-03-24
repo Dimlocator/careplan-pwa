@@ -612,31 +612,28 @@
     font-family: 'DM Mono', monospace;
     font-size: 0.75rem;
     color: var(--accent2);
-    background: transparent;
-    border: none;
-    border-bottom: 1.5px dashed var(--border);
+    background: rgba(255,255,255,0.7);
+    border: 1.5px solid var(--border);
+    border-radius: 5px;
     text-align: center;
     outline: none;
-    padding: 2px 4px;
-    transition: border-color 0.15s;
-    letter-spacing: 0.05em;
+    padding: 5px 28px 5px 10px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a7060'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
   }
   .editable-field:focus {
-    border-bottom-color: var(--accent);
-    background: rgba(255,255,255,0.6);
-    border-radius: 2px 2px 0 0;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(212,95,0,0.12);
   }
-  .field-day { width: 96px; text-transform: capitalize; }
-  .field-dates { width: 160px; }
+  .field-day { width: 120px; }
+  .field-dates { width: 200px; }
   .meta-sep { color: var(--border); font-size: 0.75rem; }
-  .edit-hint {
-    font-size: 0.58rem;
-    color: var(--muted);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-top: 3px;
-    opacity: 0.7;
-  }
 </style>
 </head>
 <body>
@@ -651,11 +648,18 @@
 <header>
   <h1>Care Plans</h1>
   <div class="header-meta">
-    <input class="editable-field field-day" id="fieldDay" value="Monday" maxlength="16" title="Click to edit day" />
+    <select class="editable-field field-day" id="fieldDay">
+      <option>Monday</option>
+      <option>Tuesday</option>
+      <option>Wednesday</option>
+      <option>Thursday</option>
+      <option>Friday</option>
+      <option>Saturday</option>
+      <option>Sunday</option>
+    </select>
     <span class="meta-sep">·</span>
-    <input class="editable-field field-dates" id="fieldDates" value="Week of March 23–29" maxlength="32" title="Click to edit dates" />
+    <select class="editable-field field-dates" id="fieldDates"></select>
   </div>
-  <div class="edit-hint">tap to edit day &amp; date</div>
   <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
   <div class="progress-label" id="progressLabel">0 of 0 tasks complete</div>
 </header>
@@ -829,24 +833,59 @@ function saveNotes() { localStorage.setItem('careplan_mon_notes', JSON.stringify
 function saveDoc() { localStorage.setItem('careplan_mon_doc', JSON.stringify(docState)); }
 function saveCb() { localStorage.setItem('careplan_mon_cb', JSON.stringify(checkbacks)); }
 
-// Day & date label persistence
+// Day & week dropdown persistence
 (function() {
   const dayEl = document.getElementById('fieldDay');
   const datesEl = document.getElementById('fieldDates');
   const saved = JSON.parse(localStorage.getItem('careplan_meta') || '{}');
+
+  // Populate week dropdown: 2 weeks back through 10 weeks ahead
+  const monthNames = ['January','February','March','April','May','June',
+                      'July','August','September','October','November','December'];
+  const today = new Date();
+  const dow = today.getDay(); // 0=Sun
+  const daysToMon = dow === 0 ? -6 : 1 - dow;
+  const thisMonday = new Date(today);
+  thisMonday.setDate(today.getDate() + daysToMon);
+  thisMonday.setHours(0,0,0,0);
+
+  let defaultOpt = null;
+  for (let w = -2; w <= 10; w++) {
+    const start = new Date(thisMonday);
+    start.setDate(thisMonday.getDate() + w * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    const label = start.getMonth() === end.getMonth()
+      ? `Week of ${monthNames[start.getMonth()]} ${start.getDate()}–${end.getDate()}`
+      : `Week of ${monthNames[start.getMonth()]} ${start.getDate()}–${monthNames[end.getMonth()]} ${end.getDate()}`;
+    const opt = document.createElement('option');
+    opt.value = label;
+    opt.textContent = label;
+    datesEl.appendChild(opt);
+    if (w === 0) defaultOpt = opt;
+  }
+
+  // Restore saved values
   if (saved.day) dayEl.value = saved.day;
-  if (saved.dates) datesEl.value = saved.dates;
+  if (saved.dates) {
+    datesEl.value = saved.dates;
+    if (!datesEl.value && saved.dates) {
+      // Saved week not in list — add it at top
+      const opt = document.createElement('option');
+      opt.value = saved.dates;
+      opt.textContent = saved.dates;
+      datesEl.insertBefore(opt, datesEl.firstChild);
+      datesEl.value = saved.dates;
+    }
+  } else if (defaultOpt) {
+    datesEl.value = defaultOpt.value;
+  }
+
   function saveMeta() {
     localStorage.setItem('careplan_meta', JSON.stringify({ day: dayEl.value, dates: datesEl.value }));
   }
-  dayEl.addEventListener('input', saveMeta);
-  datesEl.addEventListener('input', saveMeta);
-  // Auto-resize inputs to content
-  function resize(el) { el.style.width = Math.max(60, el.value.length * 9) + 'px'; }
-  [dayEl, datesEl].forEach(el => {
-    resize(el);
-    el.addEventListener('input', () => resize(el));
-  });
+  dayEl.addEventListener('change', saveMeta);
+  datesEl.addEventListener('change', saveMeta);
 })();
 
 function key(room, i) { return `${room}-${i}`; }
