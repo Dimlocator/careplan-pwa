@@ -1,4 +1,4 @@
-const CACHE_NAME = 'careplan-v1';
+const CACHE_NAME = 'careplan-v2';
 const ASSETS = [
   './index.html',
   './manifest.json',
