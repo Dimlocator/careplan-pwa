@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Care Plans</title>
+
+<!-- PWA -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1a3a4a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Care Plans">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f0e8;
+    --card: #fffef9;
+    --accent: #d45f00;
+    --accent2: #1a3a4a;
+    --text: #1c1c1c;
+    --muted: #7a7060;
+    --border: #d6cfc0;
+    --highlight: #ffe8b0;
+    --done-bg: #e8f5e9;
+    --done-text: #4a7c50;
+    --check-border: #b0a898;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--accent2);
+  }
+
+  header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent2);
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  header p {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .progress-bar-wrap {
+    background: var(--border);
+    border-radius: 999px;
+    height: 8px;
+    margin: 14px auto 4px;
+    max-width: 300px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+  .progress-label {
+    font-size: 0.7rem;
+    color: var(--accent);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+  }
+
+  .floor-section {
+    margin-bottom: 28px;
+  }
+
+  .floor-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    background: var(--accent2);
+    color: #fff;
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 2px;
+    margin-bottom: 10px;
+  }
+
+  .resident-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  .resident-card:hover {
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+  .resident-card.flagged {
+    border-left: 3px solid var(--accent);
+  }
+  .resident-card.completed-card {
+    opacity: 0.6;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    background: var(--card);
+    transition: background 0.15s;
+  }
+  .card-header:hover { background: #f7f2e8; }
+
+  .room-tag {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: var(--accent2);
+    color: #fff;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+    min-width: 48px;
+    text-align: center;
+  }
+  .flagged .room-tag { background: var(--accent); }
+
+  .resident-name {
+    font-size: 0.88rem;
+    font-weight: 500;
+    flex: 1;
+    color: var(--text);
+  }
+
+  .care-plan-badge {
+    font-size: 0.6rem;
+    background: var(--highlight);
+    color: #7a5500;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .flag-icon {
+    font-size: 0.75rem;
+    color: var(--accent);
+  }
+
+  .chevron {
+    font-size: 0.65rem;
+    color: var(--muted);
+    transition: transform 0.2s;
+  }
+  .card-header.open .chevron { transform: rotate(180deg); }
+
+  .task-list {
+    display: none;
+    padding: 6px 14px 12px;
+    border-top: 1px dashed var(--border);
+    background: #fdfcf7;
+  }
+  .task-list.open { display: block; }
+
+  .task-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #ece8df;
+    cursor: pointer;
+  }
+  .task-item:last-child { border-bottom: none; }
+
+  .task-check {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--check-border);
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: transparent;
+    background: #fff;
+    transition: all 0.15s;
+  }
+  .task-item.checked .task-check {
+    background: var(--done-text);
+    border-color: var(--done-text);
+    color: #fff;
+  }
+  .task-text {
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--text);
+    transition: color 0.15s;
+  }
+  .task-item.checked .task-text {
+    color: var(--done-text);
+    text-decoration: line-through;
+  }
+
+  .complete-all-btn {
+    margin-top: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border: 1px solid var(--border);
+    background: none;
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .complete-all-btn:hover {
+    background: var(--accent2);
+    color: #fff;
+    border-color: var(--accent2);
+  }
+
+  .summary-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--accent2);
+    color: #fff;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    z-index: 100;
+  }
+  .summary-bar span { opacity: 0.7; }
+  .summary-bar strong { font-family: 'Syne', sans-serif; font-size: 1rem; }
+
+  .reset-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .reset-btn:hover { background: rgba(255,255,255,0.25); }
+
+  .notes-section {
+    margin-top: 10px;
+    border-top: 1px dashed var(--border);
+    padding-top: 10px;
+  }
+  .notes-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .notes-label .note-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--border);
+    display: inline-block;
+    transition: background 0.2s;
+  }
+  .notes-label .note-dot.has-note { background: var(--accent); }
+
+  .notes-textarea {
+    width: 100%;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text);
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    resize: vertical;
+    min-height: 68px;
+    line-height: 1.5;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .notes-textarea:focus {
+    border-color: var(--accent2);
+    box-shadow: 0 0 0 2px rgba(26,58,74,0.08);
+  }
+  .notes-textarea::placeholder { color: #c0b8a8; }
+
+  .notes-saved-indicator {
+    font-size: 0.6rem;
+    color: var(--done-text);
+    margin-top: 3px;
+    height: 12px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .notes-saved-indicator.show { opacity: 1; }
+
+  /* note indicator on closed card header */
+  .note-indicator {
+    font-size: 0.6rem;
+    background: var(--accent);
+    color: #fff;
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  /* Documentation section */
+  .doc-section {
+    margin-top: 10px;
+    border-top: 1px dashed var(--border);
+    padding-top: 10px;
+  }
+  .doc-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .doc-codes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .doc-code-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .doc-code-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+  .doc-code-btn.selected {
+    background: var(--accent2);
+    border-color: var(--accent2);
+    color: #fff;
+  }
+  .doc-code-btn .doc-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent2);
+    color: #fff;
+    font-size: 0.6rem;
+    padding: 3px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .doc-code-btn:hover .doc-tooltip { display: block; }
+
+  .pcp-extras {
+    display: none;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .pcp-extras.show { display: flex; }
+  .pcp-check-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    cursor: pointer;
+    background: var(--highlight);
+    border: 1px solid #e0c870;
+    border-radius: 4px;
+    padding: 3px 9px;
+    color: #7a5500;
+    transition: background 0.15s;
+  }
+  .pcp-check-label input { accent-color: var(--accent); cursor: pointer; }
+  .pcp-check-label:has(input:checked) {
+    background: #ffe066;
+    border-color: #c8a000;
+  }
+
+  .initials-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .initials-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .initials-input {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    width: 64px;
+    padding: 4px 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--accent2);
+    outline: none;
+    text-align: center;
+    transition: border-color 0.15s;
+  }
+  .initials-input:focus { border-color: var(--accent2); }
+
+  .doc-summary-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    background: var(--accent2);
+    color: #fff;
+    padding: 2px 7px;
+    border-radius: 3px;
+    display: none;
+    margin-left: 6px;
+    letter-spacing: 0.05em;
+  }
+  .doc-summary-badge.show { display: inline; }
+
+  /* Check-back section */
+  .checkback-section {
+    margin-top: 10px;
+    border-top: 1px dashed var(--border);
+    padding-top: 10px;
+  }
+  .checkback-label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .checkback-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .checkback-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    color: var(--text);
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .checkback-btn:hover { border-color: #e07b00; color: #e07b00; }
+  .checkback-btn.active-1hr { background: #fff3e0; border-color: #e07b00; color: #c05800; }
+  .checkback-btn.active-2hr { background: #e8f5e9; border-color: #4a7c50; color: #2e5c34; }
+  .checkback-btn.done-cb { background: #e8f5e9; border-color: #4a7c50; color: #2e5c34; text-decoration: line-through; opacity: 0.7; }
+
+  .checkback-status {
+    font-size: 0.72rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .checkback-timer {
+    font-weight: 600;
+    color: #c05800;
+    font-size: 0.75rem;
+    min-width: 48px;
+  }
+  .checkback-timer.overdue { color: #c0392b; animation: pulse 1.2s infinite; }
+  .checkback-timer.done { color: var(--done-text); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .checkback-done-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    background: var(--done-text);
+    border: none;
+    color: #fff;
+    padding: 3px 9px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .checkback-done-btn:hover { opacity: 0.85; }
+  .checkback-done-btn:disabled { opacity: 0.4; cursor: default; }
+
+  .checkback-cancel-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 3px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .checkback-cancel-btn:hover { border-color: #c0392b; color: #c0392b; }
+
+  /* header badge for checkback */
+  .checkback-header-badge {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    display: none;
+    font-weight: 600;
+  }
+  .checkback-header-badge.pending { display: inline; background: #fff3e0; color: #c05800; border: 1px solid #e07b00; }
+  .checkback-header-badge.overdue { display: inline; background: #fdecea; color: #c0392b; border: 1px solid #c0392b; animation: pulse 1.2s infinite; }
+  .checkback-header-badge.done { display: inline; background: #e8f5e9; color: var(--done-text); border: 1px solid #4a7c50; }
+
+  /* PWA install banner */
+  .install-bar {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: var(--accent2);
+    color: #fff;
+    padding: 10px 16px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    z-index: 200;
+    font-size: 0.75rem;
+  }
+  .install-bar p { flex: 1; opacity: 0.9; }
+  .install-bar strong { font-family: 'Syne', sans-serif; }
+  .install-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .install-dismiss {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+
+  /* Safe area padding for notched phones */
+  body { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+  .summary-bar { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+
+  /* Editable date/day */
+  .header-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .editable-field {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent2);
+    background: transparent;
+    border: none;
+    border-bottom: 1.5px dashed var(--border);
+    text-align: center;
+    outline: none;
+    padding: 2px 4px;
+    transition: border-color 0.15s;
+    letter-spacing: 0.05em;
+  }
+  .editable-field:focus {
+    border-bottom-color: var(--accent);
+    background: rgba(255,255,255,0.6);
+    border-radius: 2px 2px 0 0;
+  }
+  .field-day { width: 96px; text-transform: capitalize; }
+  .field-dates { width: 160px; }
+  .meta-sep { color: var(--border); font-size: 0.75rem; }
+  .edit-hint {
+    font-size: 0.58rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-top: 3px;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+
+<!-- PWA Install Banner -->
+<div class="install-bar" id="install-bar">
+  <p><strong>Care Plans</strong> — Add to Home Screen for app-like access</p>
+  <button class="install-btn" onclick="installApp()">Install</button>
+  <button class="install-dismiss" onclick="document.getElementById('install-bar').style.display='none'">✕</button>
+</div>
+
+<header>
+  <h1>Care Plans</h1>
+  <div class="header-meta">
+    <input class="editable-field field-day" id="fieldDay" value="Monday" maxlength="16" title="Click to edit day" />
+    <span class="meta-sep">·</span>
+    <input class="editable-field field-dates" id="fieldDates" value="Week of March 23–29" maxlength="32" title="Click to edit dates" />
+  </div>
+  <div class="edit-hint">tap to edit day &amp; date</div>
+  <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
+  <div class="progress-label" id="progressLabel">0 of 0 tasks complete</div>
+</header>
+
+<div id="checklist"></div>
+
+<div class="summary-bar">
+  <div><span>Residents done: </span><strong id="residentsDone">0</strong><span> / <span id="residentsTotal">0</span></span></div>
+  <div><span>Tasks: </span><strong id="tasksDone">0</strong><span> / <span id="tasksTotal">0</span></span></div>
+  <button class="reset-btn" onclick="resetAll()">Reset</button>
+</div>
+
+<script>
+const data = [
+  { floor: "Floor 2", residents: [
+    { room: "203", name: "Marie-Lynn", carePlan: true, flagged: false, tasks: [
+      "No need to check in — just go in",
+      "Sweep / mop",
+      "Garbage",
+      "Bag dirty laundry to wash"
+    ]},
+    { room: "205", name: "Johnny", carePlan: true, flagged: false, tasks: [
+      "Check in prior (if not in room, just go in)",
+      "Laundry",
+      "Swap out bedding",
+      "Sweep / mop",
+      "Clean bathroom"
+    ]},
+    { room: "207", name: "Kazoo", carePlan: true, flagged: true, tasks: [
+      "Check in prior (if away, just go in)",
+      "Check toilet works and is empty",
+      "Remove garbage",
+      "Bag dirty laundry to wash"
+    ]},
+    { room: "220", name: "John", carePlan: false, flagged: false, tasks: [
+      "Check in prior",
+      "Garbage",
+      "Sweep / mop",
+      "Laundry",
+      "Check toilet is working"
+    ]},
+    { room: "224", name: "Kate", carePlan: true, flagged: true, tasks: [
+      "Check in prior",
+      "Ensure clear path to bed and bathroom",
+      "Check toilet works",
+      "Ensure door opens fully"
+    ]},
+    { room: "231", name: "Amber", carePlan: true, flagged: false, tasks: [
+      "Check in prior (if away or sleeping in common space, just go in)",
+      "DO NOT give new clothes until after room is cleaned"
+    ]},
+    { room: "234", name: "Clinton", carePlan: true, flagged: false, tasks: [
+      "Check in prior",
+      "Garbage",
+      "Sweep / mop",
+      "Check toilet is working",
+      "Bag dirty laundry to wash"
+    ]},
+    { room: "235", name: "Monster", carePlan: false, flagged: false, tasks: [
+      "Check in prior",
+      "Garbage",
+      "Sweep / mop"
+    ]}
+  ]},
+  { floor: "Floor 3", residents: [
+    { room: "301/416", name: "Chace", carePlan: false, flagged: false, tasks: [
+      "Check in prior",
+      "Sweep / mop",
+      "Garbage",
+      "Laundry",
+      "Toilet"
+    ]},
+    { room: "306", name: "Alan", carePlan: false, flagged: false, tasks: [
+      "Check in prior",
+      "Ask for garbage on garbage run"
+    ]},
+    { room: "308", name: "Dan", carePlan: false, flagged: false, tasks: [
+      "Check in prior",
+      "Check there is no poo on walls",
+      "Check toilet works",
+      "Sweep / mop",
+      "Laundry",
+      "Bedding"
+    ]},
+    { room: "315", name: "Scott", carePlan: true, flagged: false, tasks: [
+      "Check in prior",
+      "Check toilet is working",
+      "Sweep / mop"
+    ]},
+    { room: "316", name: "Emily", carePlan: true, flagged: true, tasks: [
+      "Check in prior (if away, just go in)",
+      "Bag up dirty laundry",
+      "Sweep / mop",
+      "Remove uncapped rigs ⚠️"
+    ]},
+    { room: "318", name: "Leah", carePlan: false, flagged: false, tasks: [
+      "Check in prior",
+      "Garbage",
+      "Sweep / mop",
+      "Check toilet is working",
+      "Take dirty laundry"
+    ]},
+    { room: "324", name: "Alyssa", carePlan: false, flagged: true, tasks: [
+      "Check in prior",
+      "Garbage",
+      "Food waste",
+      "Sweep / mop"
+    ]},
+    { room: "327", name: "Natasha", carePlan: false, flagged: true, tasks: [
+      "⚠️ Barred from resident laundry room",
+      "Laundry",
+      "Sweep / mop",
+      "Garbage"
+    ]},
+    { room: "330", name: "AJ", carePlan: true, flagged: false, tasks: [
+      "Check in prior (if away, just go in)",
+      "Garbage",
+      "Sweep / mop",
+      "Take dirty laundry — DO NOT return it"
+    ]},
+    { room: "332", name: "Sheldon", carePlan: false, flagged: true, tasks: [
+      "Check in prior",
+      "Garbage",
+      "Sweep / mop",
+      "Wash / return laundry promptly",
+      "Check toilet is working"
+    ]},
+    { room: "334", name: "Alan", carePlan: true, flagged: false, tasks: [
+      "Check in prior",
+      "Remove garbage",
+      "Remove food waste",
+      "Remove junk",
+      "Bag dirty laundry to wash",
+      "Sweep / mop"
+    ]},
+    { room: "337", name: "Nubs", carePlan: false, flagged: false, tasks: [
+      "Check in prior",
+      "Garbage",
+      "Food waste",
+      "Sweep / mop",
+      "He likes to be there when you do it"
+    ]}
+  ]},
+  { floor: "Floor 4", residents: [
+    { room: "414", name: "Duke", carePlan: true, flagged: false, tasks: [
+      "Check in prior (if away, just go in)",
+      "Ensure clear path to bed and bathroom",
+      "Check toilet works",
+      "Ensure door can fully be opened"
+    ]},
+    { room: "434", name: "Beth", carePlan: false, flagged: true, tasks: [
+      "Check in prior (if away, just go in)",
+      "Garbage",
+      "Sweep / mop",
+      "Check toilet is working"
+    ]}
+  ]}
+];
+
+// State: { "room-taskIndex": true/false }
+let state = JSON.parse(localStorage.getItem('careplan_mon') || '{}');
+// Notes: { "room": "note text" }
+let notes = JSON.parse(localStorage.getItem('careplan_mon_notes') || '{}');
+// Doc: { "room": { code: "FCP", pcpItems: ["L","G"], initials: "KT" } }
+let docState = JSON.parse(localStorage.getItem('careplan_mon_doc') || '{}');
+// Checkback: { "room": { setAt: timestamp, hrs: 1|2, done: bool } }
+let checkbacks = JSON.parse(localStorage.getItem('careplan_mon_cb') || '{}');
+
+function save() { localStorage.setItem('careplan_mon', JSON.stringify(state)); }
+function saveNotes() { localStorage.setItem('careplan_mon_notes', JSON.stringify(notes)); }
+function saveDoc() { localStorage.setItem('careplan_mon_doc', JSON.stringify(docState)); }
+function saveCb() { localStorage.setItem('careplan_mon_cb', JSON.stringify(checkbacks)); }
+
+// Day & date label persistence
+(function() {
+  const dayEl = document.getElementById('fieldDay');
+  const datesEl = document.getElementById('fieldDates');
+  const saved = JSON.parse(localStorage.getItem('careplan_meta') || '{}');
+  if (saved.day) dayEl.value = saved.day;
+  if (saved.dates) datesEl.value = saved.dates;
+  function saveMeta() {
+    localStorage.setItem('careplan_meta', JSON.stringify({ day: dayEl.value, dates: datesEl.value }));
+  }
+  dayEl.addEventListener('input', saveMeta);
+  datesEl.addEventListener('input', saveMeta);
+  // Auto-resize inputs to content
+  function resize(el) { el.style.width = Math.max(60, el.value.length * 9) + 'px'; }
+  [dayEl, datesEl].forEach(el => {
+    resize(el);
+    el.addEventListener('input', () => resize(el));
+  });
+})();
+
+function key(room, i) { return `${room}-${i}`; }
+
+function updateProgress() {
+  let total = 0, done = 0, resTotal = 0, resDone = 0;
+  data.forEach(floor => floor.residents.forEach(r => {
+    resTotal++;
+    let allDone = true;
+    r.tasks.forEach((t, i) => {
+      total++;
+      if (state[key(r.room, i)]) done++;
+      else allDone = false;
+    });
+    if (allDone) resDone++;
+    const card = document.getElementById('card-' + r.room);
+    if (card) card.classList.toggle('completed-card', allDone);
+  }));
+  document.getElementById('progressFill').style.width = total ? (done/total*100) + '%' : '0%';
+  document.getElementById('progressLabel').textContent = `${done} of ${total} tasks complete`;
+  document.getElementById('tasksDone').textContent = done;
+  document.getElementById('tasksTotal').textContent = total;
+  document.getElementById('residentsDone').textContent = resDone;
+  document.getElementById('residentsTotal').textContent = resTotal;
+}
+
+function toggleTask(room, i, el) {
+  const k = key(room, i);
+  state[k] = !state[k];
+  save();
+  el.classList.toggle('checked', state[k]);
+  el.querySelector('.task-check').textContent = state[k] ? '✓' : '';
+  updateProgress();
+}
+
+function completeAll(room, tasks) {
+  tasks.forEach((t, i) => { state[key(room, i)] = true; });
+  save();
+  renderChecklist();
+}
+
+function resetAll() {
+  if (confirm('Reset all tasks, notes, documentation and check-back timers?')) {
+    state = {};
+    notes = {};
+    docState = {};
+    checkbacks = {};
+    save();
+    saveNotes();
+    saveDoc();
+    saveCb();
+    renderChecklist();
+  }
+}
+
+// Register service worker for PWA offline support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log('SW registered'))
+      .catch(e => console.log('SW error', e));
+  });
+}
+
+// Show install banner if not already installed
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const bar = document.getElementById('install-bar');
+  if (bar) bar.style.display = 'flex';
+});
+window.addEventListener('appinstalled', () => {
+  const bar = document.getElementById('install-bar');
+  if (bar) bar.style.display = 'none';
+});
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  }
+}
+
+function resetAll() {
+  if (confirm('Reset all tasks, notes and documentation?')) {
+    state = {};
+    notes = {};
+    docState = {};
+    checkbacks = {};
+    save();
+    saveNotes();
+    saveDoc();
+    saveCb();
+    renderChecklist();
+  }
+}
+
+function toggleCard(header, taskList) {
+  header.classList.toggle('open');
+  taskList.classList.toggle('open');
+}
+
+function buildDocBadgeText(room) {
+  const d = docState[room];
+  if (!d || !d.code) return '';
+  let text = d.code;
+  if (d.code === 'PCP' && d.pcpItems && d.pcpItems.length) text += ', ' + d.pcpItems.join(', ');
+  if (d.initials) text += ' — ' + d.initials;
+  return text;
+}
+
+function updateDocBadge(room) {
+  const badge = document.getElementById('docbadge-' + room);
+  if (!badge) return;
+  const text = buildDocBadgeText(room);
+  badge.textContent = text;
+  badge.classList.toggle('show', !!text);
+}
+
+function formatCountdown(ms) {
+  if (ms <= 0) return 'OVERDUE';
+  const totalSec = Math.ceil(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function updateCheckbackUI(room) {
+  const cb = checkbacks[room];
+  const timerEl = document.getElementById('cb-timer-' + room);
+  const statusEl = document.getElementById('cb-status-' + room);
+  const doneBtn = document.getElementById('cb-done-btn-' + room);
+  const hdrBadge = document.getElementById('cb-hdr-' + room);
+  const cancelBtn = document.getElementById('cb-cancel-' + room);
+
+  if (!timerEl) return;
+
+  if (!cb || !cb.setAt) {
+    timerEl.textContent = '';
+    statusEl.style.display = 'none';
+    if (hdrBadge) { hdrBadge.className = 'checkback-header-badge'; hdrBadge.textContent = ''; }
+    return;
+  }
+
+  statusEl.style.display = 'flex';
+
+  if (cb.done) {
+    timerEl.className = 'checkback-timer done';
+    timerEl.textContent = '✓ checked';
+    if (doneBtn) doneBtn.disabled = true;
+    if (hdrBadge) { hdrBadge.className = 'checkback-header-badge done'; hdrBadge.textContent = '✓ checked back'; }
+    return;
+  }
+
+  const dueAt = cb.setAt + cb.hrs * 60 * 60 * 1000;
+  const remaining = dueAt - Date.now();
+
+  if (remaining <= 0) {
+    timerEl.className = 'checkback-timer overdue';
+    timerEl.textContent = 'OVERDUE';
+    if (hdrBadge) { hdrBadge.className = 'checkback-header-badge overdue'; hdrBadge.textContent = `⚠ Check back!`; }
+  } else {
+    timerEl.className = 'checkback-timer';
+    timerEl.textContent = formatCountdown(remaining);
+    const label = `${cb.hrs}hr`;
+    if (hdrBadge) { hdrBadge.className = 'checkback-header-badge pending'; hdrBadge.textContent = `⏱ ${formatCountdown(remaining)}`; }
+  }
+}
+
+// Tick all timers every second
+setInterval(() => {
+  data.forEach(floor => floor.residents.forEach(r => updateCheckbackUI(r.room)));
+}, 1000);
+
+function renderChecklist() {
+  const container = document.getElementById('checklist');
+  container.innerHTML = '';
+  data.forEach(floor => {
+    const section = document.createElement('div');
+    section.className = 'floor-section';
+    const label = document.createElement('div');
+    label.className = 'floor-label';
+    label.textContent = floor.floor;
+    section.appendChild(label);
+
+    floor.residents.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'resident-card' + (r.flagged ? ' flagged' : '');
+      card.id = 'card-' + r.room;
+
+      const header = document.createElement('div');
+      header.className = 'card-header';
+
+      const roomTag = document.createElement('span');
+      roomTag.className = 'room-tag';
+      roomTag.textContent = r.room;
+
+      const name = document.createElement('span');
+      name.className = 'resident-name';
+      name.textContent = r.name;
+
+      const badges = document.createElement('span');
+      if (r.carePlan) {
+        const b = document.createElement('span');
+        b.className = 'care-plan-badge';
+        b.textContent = 'Care Plan';
+        badges.appendChild(b);
+      }
+      if (r.flagged) {
+        const f = document.createElement('span');
+        f.className = 'flag-icon';
+        f.textContent = ' 🔶';
+        badges.appendChild(f);
+      }
+
+      const chev = document.createElement('span');
+      chev.className = 'chevron';
+      chev.textContent = '▼';
+
+      header.appendChild(roomTag);
+      header.appendChild(name);
+      header.appendChild(badges);
+      header.appendChild(chev);
+
+      const taskList = document.createElement('div');
+      taskList.className = 'task-list';
+
+      r.tasks.forEach((t, i) => {
+        const item = document.createElement('div');
+        item.className = 'task-item' + (state[key(r.room, i)] ? ' checked' : '');
+        item.innerHTML = `<div class="task-check">${state[key(r.room, i)] ? '✓' : ''}</div><div class="task-text">${t}</div>`;
+        item.addEventListener('click', () => toggleTask(r.room, i, item));
+        taskList.appendChild(item);
+      });
+
+      const btn = document.createElement('button');
+      btn.className = 'complete-all-btn';
+      btn.textContent = 'Mark all done';
+      btn.addEventListener('click', (e) => { e.stopPropagation(); completeAll(r.room, r.tasks); });
+      taskList.appendChild(btn);
+
+      // Notes section
+      const notesSection = document.createElement('div');
+      notesSection.className = 'notes-section';
+
+      const notesLabel = document.createElement('div');
+      notesLabel.className = 'notes-label';
+      const dot = document.createElement('span');
+      dot.className = 'note-dot' + (notes[r.room] ? ' has-note' : '');
+      dot.id = 'dot-' + r.room;
+      notesLabel.appendChild(dot);
+      notesLabel.appendChild(document.createTextNode('Notes'));
+      notesSection.appendChild(notesLabel);
+
+      const textarea = document.createElement('textarea');
+      textarea.className = 'notes-textarea';
+      textarea.placeholder = 'Add a note for ' + r.name + '…';
+      textarea.value = notes[r.room] || '';
+
+      const savedIndicator = document.createElement('div');
+      savedIndicator.className = 'notes-saved-indicator';
+      savedIndicator.id = 'saved-' + r.room;
+      savedIndicator.textContent = '✓ saved';
+
+      let saveTimer;
+      textarea.addEventListener('input', () => {
+        notes[r.room] = textarea.value;
+        saveNotes();
+        // Update dot
+        dot.classList.toggle('has-note', !!textarea.value.trim());
+        // Update note indicator on header
+        const ni = document.getElementById('noteindicator-' + r.room);
+        if (ni) ni.style.display = textarea.value.trim() ? 'inline' : 'none';
+        // Show saved flash
+        clearTimeout(saveTimer);
+        savedIndicator.classList.add('show');
+        saveTimer = setTimeout(() => savedIndicator.classList.remove('show'), 1200);
+      });
+      textarea.addEventListener('click', e => e.stopPropagation());
+
+      notesSection.appendChild(textarea);
+      notesSection.appendChild(savedIndicator);
+      taskList.appendChild(notesSection);
+
+      // Note indicator badge on card header (visible when card is collapsed)
+      const noteIndicator = document.createElement('span');
+      noteIndicator.className = 'note-indicator';
+      noteIndicator.id = 'noteindicator-' + r.room;
+      noteIndicator.textContent = '📝';
+      noteIndicator.style.display = notes[r.room] ? 'inline' : 'none';
+      // Insert before chevron
+      header.insertBefore(noteIndicator, chev);
+
+      // Doc summary badge on header
+      const docBadge = document.createElement('span');
+      docBadge.className = 'doc-summary-badge' + (docState[r.room]?.code ? ' show' : '');
+      docBadge.id = 'docbadge-' + r.room;
+      docBadge.textContent = buildDocBadgeText(r.room);
+      header.insertBefore(docBadge, chev);
+
+      // --- Documentation Section ---
+      const docSection = document.createElement('div');
+      docSection.className = 'doc-section';
+
+      const docLabelEl = document.createElement('div');
+      docLabelEl.className = 'doc-label';
+      docLabelEl.textContent = 'Documentation';
+      docSection.appendChild(docLabelEl);
+
+      const codes = [
+        { code: 'FCP', desc: 'Full Care Plan — all tasks done' },
+        { code: 'PCP', desc: 'Partial Care Plan — some tasks done' },
+        { code: 'THC', desc: 'Toilet & Hazards Clear — refused but safety check done' },
+        { code: 'RCPTHC', desc: 'Refused Care Plan — entered for toilet + hazard check' },
+      ];
+
+      const docCodes = document.createElement('div');
+      docCodes.className = 'doc-codes';
+
+      const pcpExtras = document.createElement('div');
+      pcpExtras.className = 'pcp-extras' + (docState[r.room]?.code === 'PCP' ? ' show' : '');
+
+      const pcpItems = [
+        { val: 'L', label: 'L — Laundry' },
+        { val: 'G', label: 'G — Garbage/Junk' },
+        { val: 'SM', label: 'SM — Sweep/Mop' },
+      ];
+      pcpItems.forEach(item => {
+        const lbl = document.createElement('label');
+        lbl.className = 'pcp-check-label';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = item.val;
+        cb.checked = docState[r.room]?.pcpItems?.includes(item.val) || false;
+        cb.addEventListener('change', () => {
+          if (!docState[r.room]) docState[r.room] = {};
+          if (!docState[r.room].pcpItems) docState[r.room].pcpItems = [];
+          if (cb.checked) {
+            if (!docState[r.room].pcpItems.includes(item.val)) docState[r.room].pcpItems.push(item.val);
+          } else {
+            docState[r.room].pcpItems = docState[r.room].pcpItems.filter(v => v !== item.val);
+          }
+          saveDoc();
+          updateDocBadge(r.room);
+        });
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(item.label));
+        pcpExtras.appendChild(lbl);
+      });
+
+      codes.forEach(({ code, desc }) => {
+        const btn = document.createElement('button');
+        btn.className = 'doc-code-btn' + (docState[r.room]?.code === code ? ' selected' : '');
+        btn.innerHTML = `${code}<span class="doc-tooltip">${desc}</span>`;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!docState[r.room]) docState[r.room] = {};
+          if (docState[r.room].code === code) {
+            docState[r.room].code = '';
+          } else {
+            docState[r.room].code = code;
+          }
+          saveDoc();
+          // Update button states
+          docCodes.querySelectorAll('.doc-code-btn').forEach(b => b.classList.remove('selected'));
+          if (docState[r.room].code) btn.classList.add('selected');
+          // Show/hide PCP extras
+          pcpExtras.classList.toggle('show', docState[r.room].code === 'PCP');
+          updateDocBadge(r.room);
+        });
+        docCodes.appendChild(btn);
+      });
+
+      docSection.appendChild(docCodes);
+      docSection.appendChild(pcpExtras);
+
+      // Initials
+      const initialsRow = document.createElement('div');
+      initialsRow.className = 'initials-row';
+      const initialsLbl = document.createElement('span');
+      initialsLbl.className = 'initials-label';
+      initialsLbl.textContent = 'Staff initials:';
+      const initialsInput = document.createElement('input');
+      initialsInput.className = 'initials-input';
+      initialsInput.type = 'text';
+      initialsInput.maxLength = 4;
+      initialsInput.placeholder = 'e.g. KT';
+      initialsInput.value = docState[r.room]?.initials || '';
+      initialsInput.addEventListener('input', (e) => {
+        e.stopPropagation();
+        if (!docState[r.room]) docState[r.room] = {};
+        docState[r.room].initials = initialsInput.value.toUpperCase();
+        initialsInput.value = initialsInput.value.toUpperCase();
+        saveDoc();
+        updateDocBadge(r.room);
+      });
+      initialsInput.addEventListener('click', e => e.stopPropagation());
+      initialsRow.appendChild(initialsLbl);
+      initialsRow.appendChild(initialsInput);
+      docSection.appendChild(initialsRow);
+
+      taskList.appendChild(docSection);
+
+      // --- Check-back Section ---
+      const cbSection = document.createElement('div');
+      cbSection.className = 'checkback-section';
+
+      const cbLabelEl = document.createElement('div');
+      cbLabelEl.className = 'checkback-label';
+      cbLabelEl.textContent = '⏱ Check Back Reminder';
+      cbSection.appendChild(cbLabelEl);
+
+      const cbButtons = document.createElement('div');
+      cbButtons.className = 'checkback-buttons';
+
+      const cb = checkbacks[r.room];
+
+      [1, 2].forEach(hrs => {
+        const btn = document.createElement('button');
+        btn.className = 'checkback-btn';
+        btn.textContent = `${hrs} hr`;
+        if (cb && cb.hrs === hrs && !cb.done) btn.classList.add(`active-${hrs}hr`);
+        if (cb && cb.hrs === hrs && cb.done) btn.classList.add('done-cb');
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          checkbacks[r.room] = { setAt: Date.now(), hrs, done: false };
+          saveCb();
+          renderChecklist();
+        });
+        cbButtons.appendChild(btn);
+      });
+
+      // Status row (timer + done button + cancel)
+      const cbStatus = document.createElement('div');
+      cbStatus.className = 'checkback-status';
+      cbStatus.id = 'cb-status-' + r.room;
+      cbStatus.style.display = (cb && cb.setAt) ? 'flex' : 'none';
+
+      const cbTimer = document.createElement('span');
+      cbTimer.className = 'checkback-timer';
+      cbTimer.id = 'cb-timer-' + r.room;
+
+      const cbDoneBtn = document.createElement('button');
+      cbDoneBtn.className = 'checkback-done-btn';
+      cbDoneBtn.id = 'cb-done-btn-' + r.room;
+      cbDoneBtn.textContent = '✓ Checked back';
+      cbDoneBtn.disabled = cb?.done || false;
+      cbDoneBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        if (checkbacks[r.room]) checkbacks[r.room].done = true;
+        saveCb();
+        updateCheckbackUI(r.room);
+      });
+
+      const cbCancelBtn = document.createElement('button');
+      cbCancelBtn.className = 'checkback-cancel-btn';
+      cbCancelBtn.id = 'cb-cancel-' + r.room;
+      cbCancelBtn.textContent = 'Clear';
+      cbCancelBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        delete checkbacks[r.room];
+        saveCb();
+        renderChecklist();
+      });
+
+      cbStatus.appendChild(cbTimer);
+      cbStatus.appendChild(cbDoneBtn);
+      cbStatus.appendChild(cbCancelBtn);
+
+      cbSection.appendChild(cbButtons);
+      cbSection.appendChild(cbStatus);
+      taskList.appendChild(cbSection);
+
+      // Check-back header badge
+      const cbHdrBadge = document.createElement('span');
+      cbHdrBadge.className = 'checkback-header-badge';
+      cbHdrBadge.id = 'cb-hdr-' + r.room;
+      header.insertBefore(cbHdrBadge, chev);
+
+      // Init timer display
+      setTimeout(() => updateCheckbackUI(r.room), 0);
+
+      header.addEventListener('click', () => toggleCard(header, taskList));
+
+      card.appendChild(header);
+      card.appendChild(taskList);
+      section.appendChild(card);
+    });
+
+    container.appendChild(section);
+  });
+  updateProgress();
+}
+
+renderChecklist();
+</script>
+</body>
+</html>
