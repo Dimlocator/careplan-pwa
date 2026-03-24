@@ -116,8 +116,8 @@
   .resident-card:hover {
     box-shadow: 0 2px 12px rgba(0,0,0,0.07);
   }
-  .resident-card.flagged {
-    border-left: 3px solid var(--accent);
+  .resident-card.priority {
+    border-left: 4px solid #e07b00;
   }
   .resident-card.completed-card {
     opacity: 0.6;
@@ -147,7 +147,7 @@
     min-width: 48px;
     text-align: center;
   }
-  .flagged .room-tag { background: var(--accent); }
+  .priority .room-tag { background: #e07b00; }
 
   .resident-name {
     font-size: 0.88rem;
@@ -156,19 +156,88 @@
     color: var(--text);
   }
 
-  .care-plan-badge {
-    font-size: 0.6rem;
-    background: var(--highlight);
-    color: #7a5500;
-    padding: 1px 6px;
-    border-radius: 3px;
+  .priority-toggle-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    background: none;
+    border: 1.5px solid var(--border);
+    color: var(--muted);
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
     white-space: nowrap;
   }
+  .priority-toggle-btn.on { background: #fff3e0; border-color: #e07b00; color: #c05800; }
 
-  .flag-icon {
-    font-size: 0.75rem;
-    color: var(--accent);
+  .delete-res-btn {
+    background: none; border: none; color: #c0392b;
+    font-size: 1.2rem; cursor: pointer; padding: 0 4px;
+    line-height: 1; flex-shrink: 0; opacity: 0.7;
   }
+  .delete-res-btn:hover { opacity: 1; }
+
+  .add-res-form {
+    background: #fdfcf7;
+    border: 1.5px dashed var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+    display: none;
+  }
+  .add-res-form.show { display: block; }
+  .add-res-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+  .add-res-input {
+    font-family: 'DM Mono', monospace; font-size: 0.78rem;
+    border: 1.5px solid var(--border); border-radius: 4px;
+    padding: 6px 8px; background: #fff; color: var(--text);
+    outline: none; transition: border-color 0.15s;
+  }
+  .add-res-input:focus { border-color: var(--accent2); }
+  .add-res-input.room-in { width: 80px; }
+  .add-res-input.name-in { flex: 1; min-width: 120px; }
+  .add-res-btn {
+    font-family: 'DM Mono', monospace; font-size: 0.72rem;
+    background: var(--accent2); color: #fff; border: none;
+    padding: 6px 14px; border-radius: 4px; cursor: pointer;
+  }
+  .priority-check-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.72rem; color: var(--muted);
+  }
+  .priority-check-row input { accent-color: #e07b00; cursor: pointer; }
+
+  .delete-task-btn {
+    background: none; border: none; color: #c0392b;
+    font-size: 0.9rem; cursor: pointer; padding: 0 3px;
+    line-height: 1; margin-left: auto; flex-shrink: 0; opacity: 0.5;
+  }
+  .delete-task-btn:hover { opacity: 1; }
+
+  .add-task-row {
+    display: flex; gap: 6px; margin-top: 8px;
+    padding-top: 8px; border-top: 1px dashed var(--border);
+  }
+  .add-task-input {
+    font-family: 'DM Mono', monospace; font-size: 0.75rem;
+    flex: 1; border: 1.5px solid var(--border); border-radius: 4px;
+    padding: 5px 8px; outline: none; background: #fff; color: var(--text);
+  }
+  .add-task-input:focus { border-color: var(--accent2); }
+  .add-task-btn {
+    font-family: 'DM Mono', monospace; font-size: 0.8rem; font-weight: 500;
+    background: var(--accent2); color: #fff; border: none;
+    padding: 5px 12px; border-radius: 4px; cursor: pointer;
+  }
+
+  .edit-mode-btn {
+    font-family: 'DM Mono', monospace; font-size: 0.65rem;
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    color: #fff; padding: 4px 10px; border-radius: 3px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .edit-mode-btn.active { background: #e07b00; border-color: #e07b00; }
+  .edit-mode-btn:hover { background: rgba(255,255,255,0.25); }
 
   .chevron {
     font-size: 0.65rem;
@@ -669,74 +738,75 @@
 <div class="summary-bar">
   <div><span>Residents done: </span><strong id="residentsDone">0</strong><span> / <span id="residentsTotal">0</span></span></div>
   <div><span>Tasks: </span><strong id="tasksDone">0</strong><span> / <span id="tasksTotal">0</span></span></div>
+  <button class="edit-mode-btn" id="editModeBtn" onclick="toggleEditMode()">Edit</button>
   <button class="reset-btn" onclick="resetAll()">Reset</button>
 </div>
 
 <script>
-const data = [
+const defaultData = [
   { floor: "Floor 2", residents: [
-    { room: "203", name: "Marie-Lynn", carePlan: true, flagged: false, tasks: [
+    { room: "203", name: "Marie-Lynn", priority: false, tasks: [
       "No need to check in — just go in",
       "Sweep / mop",
       "Garbage",
       "Bag dirty laundry to wash"
     ]},
-    { room: "205", name: "Johnny", carePlan: true, flagged: false, tasks: [
+    { room: "205", name: "Johnny", priority: false, tasks: [
       "Check in prior (if not in room, just go in)",
       "Laundry",
       "Swap out bedding",
       "Sweep / mop",
       "Clean bathroom"
     ]},
-    { room: "207", name: "Kazoo", carePlan: true, flagged: true, tasks: [
+    { room: "207", name: "Kazoo", priority: true, tasks: [
       "Check in prior (if away, just go in)",
       "Check toilet works and is empty",
       "Remove garbage",
       "Bag dirty laundry to wash"
     ]},
-    { room: "220", name: "John", carePlan: false, flagged: false, tasks: [
+    { room: "220", name: "John", priority: false, tasks: [
       "Check in prior",
       "Garbage",
       "Sweep / mop",
       "Laundry",
       "Check toilet is working"
     ]},
-    { room: "224", name: "Kate", carePlan: true, flagged: true, tasks: [
+    { room: "224", name: "Kate", priority: true, tasks: [
       "Check in prior",
       "Ensure clear path to bed and bathroom",
       "Check toilet works",
       "Ensure door opens fully"
     ]},
-    { room: "231", name: "Amber", carePlan: true, flagged: false, tasks: [
+    { room: "231", name: "Amber", priority: false, tasks: [
       "Check in prior (if away or sleeping in common space, just go in)",
       "DO NOT give new clothes until after room is cleaned"
     ]},
-    { room: "234", name: "Clinton", carePlan: true, flagged: false, tasks: [
+    { room: "234", name: "Clinton", priority: false, tasks: [
       "Check in prior",
       "Garbage",
       "Sweep / mop",
       "Check toilet is working",
       "Bag dirty laundry to wash"
     ]},
-    { room: "235", name: "Monster", carePlan: false, flagged: false, tasks: [
+    { room: "235", name: "Monster", priority: false, tasks: [
       "Check in prior",
       "Garbage",
       "Sweep / mop"
     ]}
   ]},
   { floor: "Floor 3", residents: [
-    { room: "301/416", name: "Chace", carePlan: false, flagged: false, tasks: [
+    { room: "301/416", name: "Chace", priority: false, tasks: [
       "Check in prior",
       "Sweep / mop",
       "Garbage",
       "Laundry",
       "Toilet"
     ]},
-    { room: "306", name: "Alan", carePlan: false, flagged: false, tasks: [
+    { room: "306", name: "Alan", priority: false, tasks: [
       "Check in prior",
       "Ask for garbage on garbage run"
     ]},
-    { room: "308", name: "Dan", carePlan: false, flagged: false, tasks: [
+    { room: "308", name: "Dan", priority: false, tasks: [
       "Check in prior",
       "Check there is no poo on walls",
       "Check toilet works",
@@ -744,50 +814,50 @@ const data = [
       "Laundry",
       "Bedding"
     ]},
-    { room: "315", name: "Scott", carePlan: true, flagged: false, tasks: [
+    { room: "315", name: "Scott", priority: false, tasks: [
       "Check in prior",
       "Check toilet is working",
       "Sweep / mop"
     ]},
-    { room: "316", name: "Emily", carePlan: true, flagged: true, tasks: [
+    { room: "316", name: "Emily", priority: true, tasks: [
       "Check in prior (if away, just go in)",
       "Bag up dirty laundry",
       "Sweep / mop",
       "Remove uncapped rigs ⚠️"
     ]},
-    { room: "318", name: "Leah", carePlan: false, flagged: false, tasks: [
+    { room: "318", name: "Leah", priority: false, tasks: [
       "Check in prior",
       "Garbage",
       "Sweep / mop",
       "Check toilet is working",
       "Take dirty laundry"
     ]},
-    { room: "324", name: "Alyssa", carePlan: false, flagged: true, tasks: [
+    { room: "324", name: "Alyssa", priority: true, tasks: [
       "Check in prior",
       "Garbage",
       "Food waste",
       "Sweep / mop"
     ]},
-    { room: "327", name: "Natasha", carePlan: false, flagged: true, tasks: [
+    { room: "327", name: "Natasha", priority: true, tasks: [
       "⚠️ Barred from resident laundry room",
       "Laundry",
       "Sweep / mop",
       "Garbage"
     ]},
-    { room: "330", name: "AJ", carePlan: true, flagged: false, tasks: [
+    { room: "330", name: "AJ", priority: false, tasks: [
       "Check in prior (if away, just go in)",
       "Garbage",
       "Sweep / mop",
       "Take dirty laundry — DO NOT return it"
     ]},
-    { room: "332", name: "Sheldon", carePlan: false, flagged: true, tasks: [
+    { room: "332", name: "Sheldon", priority: true, tasks: [
       "Check in prior",
       "Garbage",
       "Sweep / mop",
       "Wash / return laundry promptly",
       "Check toilet is working"
     ]},
-    { room: "334", name: "Alan", carePlan: true, flagged: false, tasks: [
+    { room: "334", name: "Alan", priority: false, tasks: [
       "Check in prior",
       "Remove garbage",
       "Remove food waste",
@@ -795,7 +865,7 @@ const data = [
       "Bag dirty laundry to wash",
       "Sweep / mop"
     ]},
-    { room: "337", name: "Nubs", carePlan: false, flagged: false, tasks: [
+    { room: "337", name: "Nubs", priority: false, tasks: [
       "Check in prior",
       "Garbage",
       "Food waste",
@@ -804,13 +874,13 @@ const data = [
     ]}
   ]},
   { floor: "Floor 4", residents: [
-    { room: "414", name: "Duke", carePlan: true, flagged: false, tasks: [
+    { room: "414", name: "Duke", priority: false, tasks: [
       "Check in prior (if away, just go in)",
       "Ensure clear path to bed and bathroom",
       "Check toilet works",
       "Ensure door can fully be opened"
     ]},
-    { room: "434", name: "Beth", carePlan: false, flagged: true, tasks: [
+    { room: "434", name: "Beth", priority: true, tasks: [
       "Check in prior (if away, just go in)",
       "Garbage",
       "Sweep / mop",
@@ -818,6 +888,67 @@ const data = [
     ]}
   ]}
 ];
+
+// Load resident list from localStorage, falling back to default
+const saved = JSON.parse(localStorage.getItem('careplan_residents') || 'null');
+const data = saved || defaultData;
+function saveResidents() { localStorage.setItem('careplan_residents', JSON.stringify(data)); }
+
+// Edit mode
+let editMode = false;
+function toggleEditMode() {
+  editMode = !editMode;
+  const btn = document.getElementById('editModeBtn');
+  btn.textContent = editMode ? 'Done' : 'Edit';
+  btn.classList.toggle('active', editMode);
+  renderChecklist();
+}
+
+function deleteResident(floorIdx, roomId) {
+  if (!confirm('Remove ' + roomId + ' from the list?')) return;
+  data[floorIdx].residents = data[floorIdx].residents.filter(r => r.room !== roomId);
+  saveResidents();
+  renderChecklist();
+}
+
+function addResident(floorIdx, roomEl, nameEl, priorityEl) {
+  const room = roomEl.value.trim();
+  const name = nameEl.value.trim();
+  if (!room || !name) { alert('Please enter both a room number and a name.'); return; }
+  data[floorIdx].residents.push({ room, name, priority: priorityEl.checked, tasks: [] });
+  saveResidents();
+  renderChecklist();
+}
+
+function togglePriority(floorIdx, roomId) {
+  const r = data[floorIdx].residents.find(r => r.room === roomId);
+  if (r) { r.priority = !r.priority; saveResidents(); renderChecklist(); }
+}
+
+function deleteTask(floorIdx, roomId, taskIdx) {
+  const r = data[floorIdx].residents.find(r => r.room === roomId);
+  if (!r) return;
+  r.tasks.splice(taskIdx, 1);
+  // Re-index state keys for this room
+  const newState = {};
+  Object.keys(state).forEach(k => {
+    if (!k.startsWith(roomId + '-')) { newState[k] = state[k]; return; }
+    const idx = parseInt(k.split('-').slice(1).join('-'));
+    if (idx < taskIdx) newState[k] = state[k];
+    else if (idx > taskIdx) newState[roomId + '-' + (idx - 1)] = state[k];
+  });
+  state = newState;
+  save();
+  saveResidents();
+  renderChecklist();
+}
+
+function addTask(floorIdx, roomId, inputEl) {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  const r = data[floorIdx].residents.find(r => r.room === roomId);
+  if (r) { r.tasks.push(text); saveResidents(); renderChecklist(); }
+}
 
 // State: { "room-taskIndex": true/false }
 let state = JSON.parse(localStorage.getItem('careplan_mon') || '{}');
@@ -1071,9 +1202,10 @@ function renderChecklist() {
     label.textContent = floor.floor;
     section.appendChild(label);
 
+    const floorIdx = data.indexOf(floor);
     floor.residents.forEach(r => {
       const card = document.createElement('div');
-      card.className = 'resident-card' + (r.flagged ? ' flagged' : '');
+      card.className = 'resident-card' + (r.priority ? ' priority' : '');
       card.id = 'card-' + r.room;
 
       const header = document.createElement('div');
@@ -1087,27 +1219,29 @@ function renderChecklist() {
       name.className = 'resident-name';
       name.textContent = r.name;
 
-      const badges = document.createElement('span');
-      if (r.carePlan) {
-        const b = document.createElement('span');
-        b.className = 'care-plan-badge';
-        b.textContent = 'Care Plan';
-        badges.appendChild(b);
-      }
-      if (r.flagged) {
-        const f = document.createElement('span');
-        f.className = 'flag-icon';
-        f.textContent = ' 🔶';
-        badges.appendChild(f);
-      }
-
       const chev = document.createElement('span');
       chev.className = 'chevron';
       chev.textContent = '▼';
 
       header.appendChild(roomTag);
       header.appendChild(name);
-      header.appendChild(badges);
+
+      // Edit mode controls in header
+      if (editMode) {
+        const priorityBtn = document.createElement('button');
+        priorityBtn.className = 'priority-toggle-btn' + (r.priority ? ' on' : '');
+        priorityBtn.textContent = r.priority ? '★ Priority' : '☆ Priority';
+        priorityBtn.addEventListener('click', e => { e.stopPropagation(); togglePriority(floorIdx, r.room); });
+        header.appendChild(priorityBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-res-btn';
+        delBtn.textContent = '×';
+        delBtn.title = 'Remove resident';
+        delBtn.addEventListener('click', e => { e.stopPropagation(); deleteResident(floorIdx, r.room); });
+        header.appendChild(delBtn);
+      }
+
       header.appendChild(chev);
 
       const taskList = document.createElement('div');
@@ -1116,16 +1250,47 @@ function renderChecklist() {
       r.tasks.forEach((t, i) => {
         const item = document.createElement('div');
         item.className = 'task-item' + (state[key(r.room, i)] ? ' checked' : '');
-        item.innerHTML = `<div class="task-check">${state[key(r.room, i)] ? '✓' : ''}</div><div class="task-text">${t}</div>`;
-        item.addEventListener('click', () => toggleTask(r.room, i, item));
+        const checkDiv = `<div class="task-check">${state[key(r.room, i)] ? '✓' : ''}</div>`;
+        const textDiv = `<div class="task-text">${t}</div>`;
+        item.innerHTML = checkDiv + textDiv;
+        if (!editMode) {
+          item.addEventListener('click', () => toggleTask(r.room, i, item));
+        } else {
+          const delTaskBtn = document.createElement('button');
+          delTaskBtn.className = 'delete-task-btn';
+          delTaskBtn.textContent = '×';
+          delTaskBtn.addEventListener('click', e => { e.stopPropagation(); deleteTask(floorIdx, r.room, i); });
+          item.appendChild(delTaskBtn);
+        }
         taskList.appendChild(item);
       });
 
-      const btn = document.createElement('button');
-      btn.className = 'complete-all-btn';
-      btn.textContent = 'Mark all done';
-      btn.addEventListener('click', (e) => { e.stopPropagation(); completeAll(r.room, r.tasks); });
-      taskList.appendChild(btn);
+      if (editMode) {
+        // Add task row
+        const addRow = document.createElement('div');
+        addRow.className = 'add-task-row';
+        const addInput = document.createElement('input');
+        addInput.className = 'add-task-input';
+        addInput.type = 'text';
+        addInput.placeholder = 'Add a task…';
+        addInput.addEventListener('click', e => e.stopPropagation());
+        addInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addTask(floorIdx, r.room, addInput); } });
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-task-btn';
+        addBtn.textContent = '+';
+        addBtn.addEventListener('click', e => { e.stopPropagation(); addTask(floorIdx, r.room, addInput); });
+        addRow.appendChild(addInput);
+        addRow.appendChild(addBtn);
+        taskList.appendChild(addRow);
+      }
+
+      if (!editMode) {
+        const btn = document.createElement('button');
+        btn.className = 'complete-all-btn';
+        btn.textContent = 'Mark all done';
+        btn.addEventListener('click', (e) => { e.stopPropagation(); completeAll(r.room, r.tasks); });
+        taskList.appendChild(btn);
+      }
 
       // Notes section
       const notesSection = document.createElement('div');
@@ -1249,11 +1414,14 @@ function renderChecklist() {
             docState[r.room].code = code;
           }
           saveDoc();
-          // Update button states
           docCodes.querySelectorAll('.doc-code-btn').forEach(b => b.classList.remove('selected'));
           if (docState[r.room].code) btn.classList.add('selected');
-          // Show/hide PCP extras
-          pcpExtras.classList.toggle('show', docState[r.room].code === 'PCP');
+          // Show/hide PCP extras — fix: use explicit show/hide
+          if (docState[r.room].code === 'PCP') {
+            pcpExtras.style.display = 'flex';
+          } else {
+            pcpExtras.style.display = 'none';
+          }
           updateDocBadge(r.room);
         });
         docCodes.appendChild(btn);
@@ -1261,31 +1429,6 @@ function renderChecklist() {
 
       docSection.appendChild(docCodes);
       docSection.appendChild(pcpExtras);
-
-      // Initials
-      const initialsRow = document.createElement('div');
-      initialsRow.className = 'initials-row';
-      const initialsLbl = document.createElement('span');
-      initialsLbl.className = 'initials-label';
-      initialsLbl.textContent = 'Staff initials:';
-      const initialsInput = document.createElement('input');
-      initialsInput.className = 'initials-input';
-      initialsInput.type = 'text';
-      initialsInput.maxLength = 4;
-      initialsInput.placeholder = 'e.g. KT';
-      initialsInput.value = docState[r.room]?.initials || '';
-      initialsInput.addEventListener('input', (e) => {
-        e.stopPropagation();
-        if (!docState[r.room]) docState[r.room] = {};
-        docState[r.room].initials = initialsInput.value.toUpperCase();
-        initialsInput.value = initialsInput.value.toUpperCase();
-        saveDoc();
-        updateDocBadge(r.room);
-      });
-      initialsInput.addEventListener('click', e => e.stopPropagation());
-      initialsRow.appendChild(initialsLbl);
-      initialsRow.appendChild(initialsInput);
-      docSection.appendChild(initialsRow);
 
       taskList.appendChild(docSection);
 
@@ -1374,6 +1517,41 @@ function renderChecklist() {
       card.appendChild(taskList);
       section.appendChild(card);
     });
+
+    // Add Resident form (edit mode only)
+    if (editMode) {
+      const addForm = document.createElement('div');
+      addForm.className = 'add-res-form show';
+      const addRow = document.createElement('div');
+      addRow.className = 'add-res-row';
+      const roomIn = document.createElement('input');
+      roomIn.className = 'add-res-input room-in';
+      roomIn.type = 'text'; roomIn.placeholder = 'Room (e.g. 203)'; roomIn.maxLength = 8;
+      roomIn.addEventListener('click', e => e.stopPropagation());
+      const nameIn = document.createElement('input');
+      nameIn.className = 'add-res-input name-in';
+      nameIn.type = 'text'; nameIn.placeholder = 'Name'; nameIn.maxLength = 32;
+      nameIn.addEventListener('click', e => e.stopPropagation());
+      const addBtn = document.createElement('button');
+      addBtn.className = 'add-res-btn';
+      addBtn.textContent = '+ Add';
+      addBtn.addEventListener('click', e => { e.stopPropagation(); addResident(floorIdx, roomIn, nameIn, priorityIn); });
+      addRow.appendChild(roomIn);
+      addRow.appendChild(nameIn);
+      addRow.appendChild(addBtn);
+      const priorityRow = document.createElement('div');
+      priorityRow.className = 'priority-check-row';
+      const priorityIn = document.createElement('input');
+      priorityIn.type = 'checkbox'; priorityIn.id = 'pcheck-' + floorIdx;
+      const priorityLbl = document.createElement('label');
+      priorityLbl.htmlFor = 'pcheck-' + floorIdx;
+      priorityLbl.textContent = 'Priority resident';
+      priorityRow.appendChild(priorityIn);
+      priorityRow.appendChild(priorityLbl);
+      addForm.appendChild(addRow);
+      addForm.appendChild(priorityRow);
+      section.appendChild(addForm);
+    }
 
     container.appendChild(section);
   });
