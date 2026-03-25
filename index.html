@@ -916,6 +916,10 @@ function toggleEditMode() {
   renderChecklist();
 }
 
+function sortFloorResidents(floor) {
+  floor.residents.sort((a, b) => parseInt(a.room) - parseInt(b.room));
+}
+
 function deleteResident(roomId) {
   if (!confirm('Remove ' + roomId + ' from the list?')) return;
   data.forEach(f => { f.residents = f.residents.filter(r => r.room !== roomId); });
@@ -955,6 +959,7 @@ function addResident(roomEl, nameEl, priorityEl) {
     floor = data.find(f => f.floor === floorName);
   }
   floor.residents.push({ room, name, priority: priorityEl.checked, tasks: [] });
+  sortFloorResidents(floor);
   saveResidents();
   renderChecklist();
 }
@@ -1007,7 +1012,14 @@ function editRoom(oldRoom) {
       data.sort((a, b) => (parseInt(a.floor.replace('Floor ',''))||999) - (parseInt(b.floor.replace('Floor ',''))||999));
       newFloor = data.find(f => f.floor === newFloorName);
     }
-    if (resident) newFloor.residents.push(resident);
+    if (resident) {
+      newFloor.residents.push(resident);
+      sortFloorResidents(newFloor);
+    }
+  } else {
+    // Same floor — re-sort in case the number shifted position
+    const sameFloor = data.find(f => f.floor === newFloorName);
+    if (sameFloor) sortFloorResidents(sameFloor);
   }
 
   save(); saveNotes(); saveDoc(); saveCb(); saveResidents();
