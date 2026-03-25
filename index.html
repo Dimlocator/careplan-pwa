@@ -1332,7 +1332,7 @@ function exportXLS() {
   const weekEl = document.getElementById('fieldDates');
   const dispEl = document.getElementById('fieldDatesDisplay');
   const dayLabel  = dayEl  ? dayEl.value  : 'Day';
-  const weekLabel = dispEl ? dispEl.textContent : (weekEl ? weekEl.value : '');
+  const weekLabel = dispEl ? dispEl.textContent.trim() : (weekEl ? weekEl.value : '');
   const fileWeek  = weekEl ? weekEl.value : 'export';
 
   // Soft pastel palette — one colour per resident/room, cycling
@@ -1341,78 +1341,102 @@ function exportXLS() {
   let ci = 0;
   data.forEach(fl => fl.residents.forEach(r => { if (!roomColorMap[r.room]) roomColorMap[r.room] = palette[ci++ % palette.length]; }));
 
-  const FLOOR_BG  = '#1A3A4A'; const FLOOR_FG  = '#ffffff';
-  const PRIO_BG   = '#e07b00'; const DONE_BG   = '#C8E6C9';
-  const HDR_BG    = '#2c5364'; const HDR_FG    = '#ffffff';
+  const FONT       = 'Calibri,Arial,sans-serif';
+  const FLOOR_BG   = '#1A3A4A'; const FLOOR_FG  = '#FFFFFF';
+  const PRIO_BG    = '#D84315'; const HDR_BG    = '#2C5364'; const HDR_FG = '#FFFFFF';
+  const DONE_BG    = '#C8E6C9'; const DONE_FG   = '#1B5E20';
+  const UNDONE_FG  = '#333333';
 
-  const td = (content, style='') => `<td style="font-family:Arial,sans-serif;font-size:10pt;padding:4px 8px;border:1px solid #ccc;${style}">${content}</td>`;
+  // Base cell style — uses background-color (not background) so Excel respects it
+  const base = (bgColor, extra='') =>
+    `font-family:${FONT};font-size:10pt;padding:4px 8px;border:1px solid #CCCCCC;background-color:${bgColor};${extra}`;
+
+  const td = (content, bgColor, extra='') =>
+    `<td style="${base(bgColor, extra)}">${content ?? ''}</td>`;
 
   let rows = '';
 
-  // Title
-  rows += `<tr><td colspan="7" style="font-family:Arial,sans-serif;font-size:14pt;font-weight:bold;padding:10px 8px;background:#f5f0e8;border:none;">${dayLabel} &mdash; ${weekLabel}</td></tr>`;
-  rows += `<tr><td colspan="7" style="border:none;height:6px;"></td></tr>`;
+  // Title row
+  rows += `<tr>
+    <td colspan="7" style="font-family:${FONT};font-size:15pt;font-weight:bold;padding:10px 8px;background-color:#F5F0E8;border:none;color:#1A3A4A;">
+      ${dayLabel} &mdash; ${weekLabel}
+    </td>
+  </tr>`;
+  rows += `<tr><td colspan="7" style="border:none;height:6px;background-color:#FFFFFF;"></td></tr>`;
 
   // Column headers
-  const hdr = s => `<td style="font-family:Arial,sans-serif;font-size:10pt;font-weight:bold;padding:5px 8px;background:${HDR_BG};color:${HDR_FG};border:1px solid #999;">${s}</td>`;
+  const hdr = s => `<td style="font-family:${FONT};font-size:10pt;font-weight:bold;padding:6px 8px;background-color:${HDR_BG};color:${HDR_FG};border:1px solid #1A3A4A;">${s}</td>`;
   rows += `<tr>${hdr('Room')}${hdr('Resident / Task')}${hdr('Priority')}${hdr('Done')}${hdr('Notes')}${hdr('Doc Code')}${hdr('Details')}</tr>`;
 
   data.forEach(floor => {
-    // Floor header — full-width dark bar
-    rows += `<tr><td colspan="7" style="font-family:Arial,sans-serif;font-size:11pt;font-weight:bold;letter-spacing:1px;padding:6px 10px;background:${FLOOR_BG};color:${FLOOR_FG};border:1px solid #111;">${floor.floor.toUpperCase()}</td></tr>`;
+    // Floor header row — full-width dark bar
+    rows += `<tr>
+      <td colspan="7" style="font-family:${FONT};font-size:11pt;font-weight:bold;letter-spacing:1px;padding:7px 10px;background-color:${FLOOR_BG};color:${FLOOR_FG};border:1px solid #0D1F2A;">
+        ${floor.floor.toUpperCase()}
+      </td>
+    </tr>`;
 
     floor.residents.forEach(r => {
-      const rc   = roomColorMap[r.room] || '#fff';
-      const note = notes[r.room] || '';
-      const doc  = docState[r.room] || {};
-      const code = doc.code || '';
-      const det  = (doc.code === 'PCP' && doc.pcpItems && doc.pcpItems.length) ? doc.pcpItems.join(', ') : '';
-      const done = r.tasks.filter((t,i) => state[key(r.room,i)]).length;
-      const pct  = r.tasks.length ? `${done}/${r.tasks.length} (${Math.round(done/r.tasks.length*100)}%)` : '—';
+      const rc     = roomColorMap[r.room] || '#FFFFFF';
+      const note   = notes[r.room] || '';
+      const doc    = docState[r.room] || {};
+      const code   = doc.code || '';
+      const det    = (doc.code === 'PCP' && doc.pcpItems && doc.pcpItems.length) ? doc.pcpItems.join(', ') : '';
+      const done   = r.tasks.filter((t,i) => state[key(r.room,i)]).length;
+      const total  = r.tasks.length;
+      const pct    = total ? `${done} / ${total}  (${Math.round(done/total*100)}%)` : '—';
       const roomBg = r.priority ? PRIO_BG : '#1A3A4A';
-      const roomFg = '#ffffff';
 
-      // Resident summary row
+      // Resident name row
       rows += `<tr>
-        ${td(r.room, `background:${roomBg};color:${roomFg};font-weight:bold;text-align:center;`)}
-        ${td(r.name, `background:${rc};font-weight:bold;font-size:11pt;`)}
-        ${td(r.priority ? '★ Priority' : '', `background:${rc};text-align:center;color:#c05800;font-weight:bold;`)}
-        ${td(pct, `background:${rc};text-align:center;`)}
-        ${td(note, `background:${rc};font-style:italic;color:#555;`)}
-        ${td(code, `background:${rc};text-align:center;font-weight:bold;`)}
-        ${td(det, `background:${rc};`)}
+        ${td(r.room,                          roomBg,   'color:#FFFFFF;font-weight:bold;text-align:center;font-size:11pt;')}
+        ${td(r.name,                          rc,       'font-weight:bold;font-size:12pt;color:#1A1A1A;')}
+        ${td(r.priority ? 'Priority' : '',    rc,       'text-align:center;font-weight:bold;color:#B71C1C;font-size:9pt;')}
+        ${td(pct,                             rc,       'text-align:center;font-size:9pt;color:#444;')}
+        ${td(note,                            rc,       'font-style:italic;color:#555555;font-size:9pt;')}
+        ${td(code,                            rc,       'text-align:center;font-weight:bold;font-size:9pt;')}
+        ${td(det,                             rc,       'font-size:9pt;')}
       </tr>`;
 
       // Task rows
       r.tasks.forEach((t, i) => {
-        const isDone = !!state[key(r.room, i)];
-        const taskBg = isDone ? DONE_BG : rc;
-        const tick   = isDone ? '✓' : '';
+        const isDone  = !!state[key(r.room, i)];
+        const taskBg  = isDone ? DONE_BG : '#FAFAFA';
+        const doneVal = isDone ? 'Yes' : 'No';
+        const doneFg  = isDone ? DONE_FG : '#888888';
         rows += `<tr>
-          ${td('', `background:${taskBg};border-right:none;`)}
-          ${td('&nbsp;&nbsp;&nbsp;' + t, `background:${taskBg};font-size:9.5pt;color:#333;`)}
-          ${td('', `background:${taskBg};`)}
-          ${td(tick, `background:${taskBg};text-align:center;font-weight:bold;color:#2e7d32;font-size:12pt;`)}
-          ${td('', `background:${taskBg};`)}
-          ${td('', `background:${taskBg};`)}
-          ${td('', `background:${taskBg};`)}
+          ${td('',            taskBg, 'border-right:1px solid #E0E0E0;')}
+          ${td('\u00a0\u00a0\u00a0' + t, taskBg, `font-size:9.5pt;color:${isDone ? '#1B5E20' : UNDONE_FG};`)}
+          ${td('',            taskBg, '')}
+          ${td(doneVal,       taskBg, `text-align:center;font-weight:bold;color:${doneFg};font-size:9pt;`)}
+          ${td('',            taskBg, '')}
+          ${td('',            taskBg, '')}
+          ${td('',            taskBg, '')}
         </tr>`;
       });
 
-      // Spacer between residents
-      rows += `<tr><td colspan="7" style="height:3px;background:#f0ece4;border:none;"></td></tr>`;
+      // Thin spacer between residents
+      rows += `<tr><td colspan="7" style="height:4px;background-color:#E8E4DC;border:none;"></td></tr>`;
     });
 
-    // Spacer between floors
-    rows += `<tr><td colspan="7" style="height:10px;background:#e8e4dc;border:none;"></td></tr>`;
+    // Wider spacer between floors
+    rows += `<tr><td colspan="7" style="height:10px;background-color:#D0CBC0;border:none;"></td></tr>`;
   });
 
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-    <head><meta charset="UTF-8"></head>
-    <body><table border="0" cellspacing="0" cellpadding="0">${rows}</table></body>
-  </html>`;
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="UTF-8">
+  <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+  <x:Name>Care Plans</x:Name>
+  <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+  </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+</head>
+<body>
+  <table border="0" cellspacing="0" cellpadding="0">${rows}</table>
+</body>
+</html>`;
 
-  const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
