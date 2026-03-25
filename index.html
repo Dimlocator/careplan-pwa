@@ -705,6 +705,7 @@
   }
   .field-day { width: 120px; }
   .meta-sep { color: var(--border); font-size: 0.75rem; }
+
   .field-dates-wrapper { position: relative; display: inline-block; }
   .field-dates-display { display: inline-block; white-space: nowrap; min-width: 210px; }
   .field-dates-hidden {
@@ -922,6 +923,16 @@ function deleteResident(roomId) {
   for (let i = data.length - 1; i >= 0; i--) {
     if (data[i].residents.length === 0) data.splice(i, 1);
   }
+  saveResidents();
+  renderChecklist();
+}
+
+function editName(room) {
+  const resident = data.flatMap(f => f.residents).find(r => r.room === room);
+  if (!resident) return;
+  const newName = prompt('Enter new name:', resident.name);
+  if (!newName || newName.trim() === resident.name) return;
+  resident.name = newName.trim();
   saveResidents();
   renderChecklist();
 }
@@ -1329,8 +1340,13 @@ function renderChecklist() {
       if (editMode) {
         roomTag.title = 'Tap to edit room number';
         roomTag.style.cursor = 'pointer';
-        roomTag.style.textDecoration = 'underline dotted';
+        roomTag.style.textDecoration = 'underline dotted rgba(255,255,255,0.5)';
         roomTag.addEventListener('click', e => { e.stopPropagation(); editRoom(r.room); });
+
+        name.title = 'Tap to edit name';
+        name.style.cursor = 'pointer';
+        name.style.textDecoration = 'underline dotted var(--border)';
+        name.addEventListener('click', e => { e.stopPropagation(); editName(r.room); });
 
         const priorityBtn = document.createElement('button');
         priorityBtn.className = 'priority-toggle-btn' + (r.priority ? ' on' : '');
