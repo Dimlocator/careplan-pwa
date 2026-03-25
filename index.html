@@ -763,7 +763,7 @@
   <div><span>Tasks: </span><strong id="tasksDone">0</strong><span> / <span id="tasksTotal">0</span></span></div>
   <button class="edit-mode-btn" id="editModeBtn" onclick="toggleEditMode()">Edit</button>
   <button class="reset-btn" onclick="resetAll()">Reset</button>
-  <button class="reset-btn" onclick="exportCSV()">CSV</button>
+  <button class="reset-btn" onclick="exportXLS()">Export</button>
 </div>
 
 <script>
@@ -1327,38 +1327,96 @@ setInterval(() => {
   data.forEach(floor => floor.residents.forEach(r => updateCheckbackUI(r.room)));
 }, 1000);
 
-function exportCSV() {
-  const dayEl = document.getElementById('fieldDay');
+function exportXLS() {
+  const dayEl  = document.getElementById('fieldDay');
   const weekEl = document.getElementById('fieldDates');
-  const dayLabel = dayEl ? dayEl.value : '';
-  const weekLabel = weekEl ? weekEl.value : '';
+  const dispEl = document.getElementById('fieldDatesDisplay');
+  const dayLabel  = dayEl  ? dayEl.value  : 'Day';
+  const weekLabel = dispEl ? dispEl.textContent : (weekEl ? weekEl.value : '');
+  const fileWeek  = weekEl ? weekEl.value : 'export';
 
-  const esc = v => `"${String(v).replace(/"/g, '""')}"`;
-  const rows = [['Week','Day','Floor','Room','Resident','Priority','Task','Completed','Notes','Doc Code','Doc Details']];
+  // Soft pastel palette — one colour per resident/room, cycling
+  const palette = ['#E8EAF6','#E3F2FD','#FFF3E0','#F3E5F5','#E8F5E9','#FBE9E7','#E0F2F1','#FFF8E1','#FCE4EC','#EDE7F6','#F1F8E9','#FFF9C4'];
+  const roomColorMap = {};
+  let ci = 0;
+  data.forEach(fl => fl.residents.forEach(r => { if (!roomColorMap[r.room]) roomColorMap[r.room] = palette[ci++ % palette.length]; }));
+
+  const FLOOR_BG  = '#1A3A4A'; const FLOOR_FG  = '#ffffff';
+  const PRIO_BG   = '#e07b00'; const DONE_BG   = '#C8E6C9';
+  const HDR_BG    = '#2c5364'; const HDR_FG    = '#ffffff';
+
+  const td = (content, style='') => `<td style="font-family:Arial,sans-serif;font-size:10pt;padding:4px 8px;border:1px solid #ccc;${style}">${content}</td>`;
+
+  let rows = '';
+
+  // Title
+  rows += `<tr><td colspan="7" style="font-family:Arial,sans-serif;font-size:14pt;font-weight:bold;padding:10px 8px;background:#f5f0e8;border:none;">${dayLabel} &mdash; ${weekLabel}</td></tr>`;
+  rows += `<tr><td colspan="7" style="border:none;height:6px;"></td></tr>`;
+
+  // Column headers
+  const hdr = s => `<td style="font-family:Arial,sans-serif;font-size:10pt;font-weight:bold;padding:5px 8px;background:${HDR_BG};color:${HDR_FG};border:1px solid #999;">${s}</td>`;
+  rows += `<tr>${hdr('Room')}${hdr('Resident / Task')}${hdr('Priority')}${hdr('Done')}${hdr('Notes')}${hdr('Doc Code')}${hdr('Details')}</tr>`;
 
   data.forEach(floor => {
+    // Floor header — full-width dark bar
+    rows += `<tr><td colspan="7" style="font-family:Arial,sans-serif;font-size:11pt;font-weight:bold;letter-spacing:1px;padding:6px 10px;background:${FLOOR_BG};color:${FLOOR_FG};border:1px solid #111;">${floor.floor.toUpperCase()}</td></tr>`;
+
     floor.residents.forEach(r => {
+      const rc   = roomColorMap[r.room] || '#fff';
       const note = notes[r.room] || '';
-      const doc = docState[r.room] || {};
-      const docCode = doc.code || '';
-      const docDetail = doc.code === 'PCP' && doc.pcpItems && doc.pcpItems.length ? doc.pcpItems.join(', ') : '';
-      if (r.tasks.length === 0) {
-        rows.push([weekLabel, dayLabel, floor.floor, r.room, r.name, r.priority ? 'Yes' : 'No', '', '', note, docCode, docDetail].map(esc).join(','));
-      } else {
-        r.tasks.forEach((t, i) => {
-          const done = state[key(r.room, i)] ? 'Yes' : 'No';
-          rows.push([weekLabel, dayLabel, floor.floor, r.room, r.name, r.priority ? 'Yes' : 'No', t, done, i === 0 ? note : '', i === 0 ? docCode : '', i === 0 ? docDetail : ''].map(esc).join(','));
-        });
-      }
+      const doc  = docState[r.room] || {};
+      const code = doc.code || '';
+      const det  = (doc.code === 'PCP' && doc.pcpItems && doc.pcpItems.length) ? doc.pcpItems.join(', ') : '';
+      const done = r.tasks.filter((t,i) => state[key(r.room,i)]).length;
+      const pct  = r.tasks.length ? `${done}/${r.tasks.length} (${Math.round(done/r.tasks.length*100)}%)` : '—';
+      const roomBg = r.priority ? PRIO_BG : '#1A3A4A';
+      const roomFg = '#ffffff';
+
+      // Resident summary row
+      rows += `<tr>
+        ${td(r.room, `background:${roomBg};color:${roomFg};font-weight:bold;text-align:center;`)}
+        ${td(r.name, `background:${rc};font-weight:bold;font-size:11pt;`)}
+        ${td(r.priority ? '★ Priority' : '', `background:${rc};text-align:center;color:#c05800;font-weight:bold;`)}
+        ${td(pct, `background:${rc};text-align:center;`)}
+        ${td(note, `background:${rc};font-style:italic;color:#555;`)}
+        ${td(code, `background:${rc};text-align:center;font-weight:bold;`)}
+        ${td(det, `background:${rc};`)}
+      </tr>`;
+
+      // Task rows
+      r.tasks.forEach((t, i) => {
+        const isDone = !!state[key(r.room, i)];
+        const taskBg = isDone ? DONE_BG : rc;
+        const tick   = isDone ? '✓' : '';
+        rows += `<tr>
+          ${td('', `background:${taskBg};border-right:none;`)}
+          ${td('&nbsp;&nbsp;&nbsp;' + t, `background:${taskBg};font-size:9.5pt;color:#333;`)}
+          ${td('', `background:${taskBg};`)}
+          ${td(tick, `background:${taskBg};text-align:center;font-weight:bold;color:#2e7d32;font-size:12pt;`)}
+          ${td('', `background:${taskBg};`)}
+          ${td('', `background:${taskBg};`)}
+          ${td('', `background:${taskBg};`)}
+        </tr>`;
+      });
+
+      // Spacer between residents
+      rows += `<tr><td colspan="7" style="height:3px;background:#f0ece4;border:none;"></td></tr>`;
     });
+
+    // Spacer between floors
+    rows += `<tr><td colspan="7" style="height:10px;background:#e8e4dc;border:none;"></td></tr>`;
   });
 
-  const csv = rows.join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `care-plans_${weekLabel}_${(dayLabel || 'all').toLowerCase()}.csv`;
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+    <head><meta charset="UTF-8"></head>
+    <body><table border="0" cellspacing="0" cellpadding="0">${rows}</table></body>
+  </html>`;
+
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `care-plans_${fileWeek}_${dayLabel.toLowerCase()}.xls`;
   a.click();
   URL.revokeObjectURL(url);
 }
