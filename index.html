@@ -130,10 +130,10 @@
     padding: 10px 14px;
     cursor: pointer;
     user-select: none;
-    background: var(--card);
+    background: transparent;
     transition: background 0.15s;
   }
-  .card-header:hover { background: #f7f2e8; }
+  .card-header:hover { background: rgba(0,0,0,0.03); }
 
   .room-tag {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -250,7 +250,7 @@
     display: none;
     padding: 6px 14px 12px;
     border-top: 1px dashed var(--border);
-    background: #fdfcf7;
+    background: transparent;
   }
   .task-list.open { display: block; }
 
@@ -1173,6 +1173,7 @@ function toggleTask(room, i, el) {
   el.classList.toggle('checked', state[k]);
   el.querySelector('.task-check').textContent = state[k] ? '✓' : '';
   updateProgress();
+  updateCardTint(room);
 }
 
 function completeAll(room, tasks) {
@@ -1314,6 +1315,23 @@ setInterval(() => {
   data.forEach(floor => floor.residents.forEach(r => updateCheckbackUI(r.room)));
 }, 1000);
 
+function cardBg(room, tasks) {
+  if (!tasks || tasks.length === 0) return 'var(--card)';
+  const done = tasks.filter((t, i) => state[key(room, i)]).length;
+  const a = (done / tasks.length) * 0.30;
+  const r = Math.round(255 * (1 - a) + 76 * a);
+  const g = Math.round(254 * (1 - a) + 175 * a);
+  const b = Math.round(249 * (1 - a) + 80 * a);
+  return `rgb(${r},${g},${b})`;
+}
+
+function updateCardTint(room) {
+  const card = document.getElementById('card-' + room);
+  if (!card) return;
+  const resident = data.flatMap(f => f.residents).find(r => r.room === room);
+  if (resident) card.style.background = cardBg(room, resident.tasks);
+}
+
 function renderChecklist() {
   const container = document.getElementById('checklist');
   container.innerHTML = '';
@@ -1329,6 +1347,7 @@ function renderChecklist() {
       const card = document.createElement('div');
       card.className = 'resident-card' + (r.priority ? ' priority' : '');
       card.id = 'card-' + r.room;
+      card.style.background = cardBg(r.room, r.tasks);
 
       const header = document.createElement('div');
       header.className = 'card-header';
