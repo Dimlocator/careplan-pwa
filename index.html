@@ -763,6 +763,7 @@
   <div><span>Tasks: </span><strong id="tasksDone">0</strong><span> / <span id="tasksTotal">0</span></span></div>
   <button class="edit-mode-btn" id="editModeBtn" onclick="toggleEditMode()">Edit</button>
   <button class="reset-btn" onclick="resetAll()">Reset</button>
+  <button class="reset-btn" onclick="exportCSV()">CSV</button>
 </div>
 
 <script>
@@ -1076,19 +1077,32 @@ function addTask(roomId, inputEl) {
   renderChecklist();
 }
 
-// State: { "room-taskIndex": true/false }
-let state = JSON.parse(localStorage.getItem('careplan_mon') || '{}');
-// Notes: { "room": "note text" }
-let notes = JSON.parse(localStorage.getItem('careplan_mon_notes') || '{}');
-// Doc: { "room": { code: "FCP", pcpItems: ["L","G"], initials: "KT" } }
-let docState = JSON.parse(localStorage.getItem('careplan_mon_doc') || '{}');
-// Checkback: { "room": { setAt: timestamp, hrs: 1|2, done: bool } }
-let checkbacks = JSON.parse(localStorage.getItem('careplan_mon_cb') || '{}');
+// Per-week + per-day state keys
+const DAY_KEYS = { Monday:'mon', Tuesday:'tue', Wednesday:'wed', Thursday:'thu', Friday:'fri', Saturday:'sat', Sunday:'sun' };
+function currentDayKey() { const el = document.getElementById('fieldDay'); return DAY_KEYS[el ? el.value : 'Monday'] || 'mon'; }
+function currentWeekKey() { const el = document.getElementById('fieldDates'); return el ? el.value : '2026-W01'; }
+function skey(type) { return `careplan_${type}_${currentWeekKey()}_${currentDayKey()}`; }
 
-function save() { localStorage.setItem('careplan_mon', JSON.stringify(state)); }
-function saveNotes() { localStorage.setItem('careplan_mon_notes', JSON.stringify(notes)); }
-function saveDoc() { localStorage.setItem('careplan_mon_doc', JSON.stringify(docState)); }
-function saveCb() { localStorage.setItem('careplan_mon_cb', JSON.stringify(checkbacks)); }
+// State: { "room-taskIndex": true/false }
+let state = {};
+// Notes: { "room": "note text" }
+let notes = {};
+// Doc: { "room": { code: "FCP", pcpItems: ["L","G"] } }
+let docState = {};
+// Checkback: { "room": { setAt: timestamp, hrs: 1|2, done: bool } }
+let checkbacks = {};
+
+function save() { localStorage.setItem(skey('state'), JSON.stringify(state)); }
+function saveNotes() { localStorage.setItem(skey('notes'), JSON.stringify(notes)); }
+function saveDoc() { localStorage.setItem(skey('doc'), JSON.stringify(docState)); }
+function saveCb() { localStorage.setItem(skey('cb'), JSON.stringify(checkbacks)); }
+
+function loadDayState() {
+  state     = JSON.parse(localStorage.getItem(skey('state')) || '{}');
+  notes     = JSON.parse(localStorage.getItem(skey('notes')) || '{}');
+  docState  = JSON.parse(localStorage.getItem(skey('doc'))   || '{}');
+  checkbacks= JSON.parse(localStorage.getItem(skey('cb'))    || '{}');
+}
 
 // Day & week picker persistence
 (function() {
@@ -1148,9 +1162,14 @@ function saveCb() { localStorage.setItem('careplan_mon_cb', JSON.stringify(check
   function saveMeta() {
     displayEl.textContent = formatWeekDisplay(datesEl.value);
     localStorage.setItem('careplan_meta', JSON.stringify({ day: dayEl.value, weekValue: datesEl.value }));
+    loadDayState();
+    renderChecklist();
   }
   dayEl.addEventListener('change', saveMeta);
   datesEl.addEventListener('change', saveMeta);
+
+  // Load state for the initially selected day/week
+  loadDayState();
 })();
 
 function key(room, i) { return `${room}-${i}`; }
@@ -1194,15 +1213,11 @@ function completeAll(room, tasks) {
 }
 
 function resetAll() {
-  if (confirm('Reset all tasks, notes, documentation and check-back timers?')) {
-    state = {};
-    notes = {};
-    docState = {};
-    checkbacks = {};
-    save();
-    saveNotes();
-    saveDoc();
-    saveCb();
+  const dayEl = document.getElementById('fieldDay');
+  const day = dayEl ? dayEl.value : 'this day';
+  if (confirm(`Reset tasks, notes, documentation and check-back timers for ${day}?`)) {
+    state = {}; notes = {}; docState = {}; checkbacks = {};
+    save(); saveNotes(); saveDoc(); saveCb();
     renderChecklist();
   }
 }
@@ -1232,20 +1247,6 @@ function installApp() {
   if (deferredPrompt) {
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
-  }
-}
-
-function resetAll() {
-  if (confirm('Reset all tasks, notes and documentation?')) {
-    state = {};
-    notes = {};
-    docState = {};
-    checkbacks = {};
-    save();
-    saveNotes();
-    saveDoc();
-    saveCb();
-    renderChecklist();
   }
 }
 
@@ -1325,6 +1326,42 @@ function updateCheckbackUI(room) {
 setInterval(() => {
   data.forEach(floor => floor.residents.forEach(r => updateCheckbackUI(r.room)));
 }, 1000);
+
+function exportCSV() {
+  const dayEl = document.getElementById('fieldDay');
+  const weekEl = document.getElementById('fieldDates');
+  const dayLabel = dayEl ? dayEl.value : '';
+  const weekLabel = weekEl ? weekEl.value : '';
+
+  const esc = v => `"${String(v).replace(/"/g, '""')}"`;
+  const rows = [['Week','Day','Floor','Room','Resident','Priority','Task','Completed','Notes','Doc Code','Doc Details']];
+
+  data.forEach(floor => {
+    floor.residents.forEach(r => {
+      const note = notes[r.room] || '';
+      const doc = docState[r.room] || {};
+      const docCode = doc.code || '';
+      const docDetail = doc.code === 'PCP' && doc.pcpItems && doc.pcpItems.length ? doc.pcpItems.join(', ') : '';
+      if (r.tasks.length === 0) {
+        rows.push([weekLabel, dayLabel, floor.floor, r.room, r.name, r.priority ? 'Yes' : 'No', '', '', note, docCode, docDetail].map(esc).join(','));
+      } else {
+        r.tasks.forEach((t, i) => {
+          const done = state[key(r.room, i)] ? 'Yes' : 'No';
+          rows.push([weekLabel, dayLabel, floor.floor, r.room, r.name, r.priority ? 'Yes' : 'No', t, done, i === 0 ? note : '', i === 0 ? docCode : '', i === 0 ? docDetail : ''].map(esc).join(','));
+        });
+      }
+    });
+  });
+
+  const csv = rows.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `care-plans_${weekLabel}_${(dayLabel || 'all').toLowerCase()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function cardBg(room, tasks) {
   if (!tasks || tasks.length === 0) return 'var(--card)';
