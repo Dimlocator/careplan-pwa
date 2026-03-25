@@ -704,8 +704,13 @@
     box-shadow: 0 0 0 2px rgba(212,95,0,0.12);
   }
   .field-day { width: 120px; }
-  .field-dates { width: 160px; }
   .meta-sep { color: var(--border); font-size: 0.75rem; }
+  .field-dates-wrapper { position: relative; display: inline-block; }
+  .field-dates-display { display: inline-block; white-space: nowrap; min-width: 210px; }
+  .field-dates-hidden {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer; border: none; background: transparent;
+  }
 </style>
 </head>
 <body>
@@ -730,7 +735,10 @@
       <option>Sunday</option>
     </select>
     <span class="meta-sep">·</span>
-    <input class="editable-field field-dates" type="week" id="fieldDates" />
+    <span class="field-dates-wrapper">
+      <span class="editable-field field-dates-display" id="fieldDatesDisplay">Loading…</span>
+      <input class="field-dates-hidden" type="week" id="fieldDates" />
+    </span>
   </div>
   <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressFill"></div></div>
   <div class="progress-label" id="progressLabel">0 of 0 tasks complete</div>
@@ -940,6 +948,61 @@ function addResident(roomEl, nameEl, priorityEl) {
   renderChecklist();
 }
 
+function editRoom(oldRoom) {
+  const newRoom = prompt('Enter new room number:', oldRoom);
+  if (!newRoom || newRoom.trim() === oldRoom) return;
+  const nr = newRoom.trim();
+
+  // Check for duplicate
+  let exists = false;
+  data.forEach(f => f.residents.forEach(r => { if (r.room === nr) exists = true; }));
+  if (exists) { alert('Room ' + nr + ' already exists.'); return; }
+
+  // Update resident data
+  data.forEach(f => f.residents.forEach(r => { if (r.room === oldRoom) r.room = nr; }));
+
+  // Update state keys
+  const newState = {};
+  Object.keys(state).forEach(k => {
+    if (k.startsWith(oldRoom + '-')) {
+      newState[nr + '-' + k.slice(oldRoom.length + 1)] = state[k];
+    } else {
+      newState[k] = state[k];
+    }
+  });
+  state = newState;
+
+  // Update notes, docState, checkbacks
+  if (notes[oldRoom] !== undefined) { notes[nr] = notes[oldRoom]; delete notes[oldRoom]; }
+  if (docState[oldRoom] !== undefined) { docState[nr] = docState[oldRoom]; delete docState[oldRoom]; }
+  if (checkbacks[oldRoom] !== undefined) { checkbacks[nr] = checkbacks[oldRoom]; delete checkbacks[oldRoom]; }
+
+  // Move resident to correct floor if floor changed
+  const newFloorName = (nr.match(/^(\d)/) ? 'Floor ' + nr[0] : 'Other');
+  const oldFloorName = (oldRoom.match(/^(\d)/) ? 'Floor ' + oldRoom[0] : 'Other');
+  if (newFloorName !== oldFloorName) {
+    let resident;
+    data.forEach(f => {
+      const idx = f.residents.findIndex(r => r.room === nr);
+      if (idx !== -1) { [resident] = f.residents.splice(idx, 1); }
+    });
+    for (let i = data.length - 1; i >= 0; i--) {
+      if (data[i].residents.length === 0) data.splice(i, 1);
+    }
+    let newFloor = data.find(f => f.floor === newFloorName);
+    if (!newFloor) {
+      newFloor = { floor: newFloorName, residents: [] };
+      data.push(newFloor);
+      data.sort((a, b) => (parseInt(a.floor.replace('Floor ',''))||999) - (parseInt(b.floor.replace('Floor ',''))||999));
+      newFloor = data.find(f => f.floor === newFloorName);
+    }
+    if (resident) newFloor.residents.push(resident);
+  }
+
+  save(); saveNotes(); saveDoc(); saveCb(); saveResidents();
+  renderChecklist();
+}
+
 function togglePriority(roomId) {
   data.forEach(f => {
     const r = f.residents.find(r => r.room === roomId);
@@ -997,17 +1060,44 @@ function saveCb() { localStorage.setItem('careplan_mon_cb', JSON.stringify(check
 (function() {
   const dayEl = document.getElementById('fieldDay');
   const datesEl = document.getElementById('fieldDates');
+  const displayEl = document.getElementById('fieldDatesDisplay');
   const saved = JSON.parse(localStorage.getItem('careplan_meta') || '{}');
 
   // Compute ISO week value (YYYY-Www) for a Monday date
   function toWeekValue(monday) {
     const d = new Date(monday);
     d.setHours(0, 0, 0, 0);
-    // Get Thursday of this week (ISO standard)
     d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
     const week1 = new Date(d.getFullYear(), 0, 4);
     const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
     return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  }
+
+  // Get Monday Date object from a YYYY-Www string
+  function weekValueToMonday(wv) {
+    const [yearStr, wStr] = wv.split('-W');
+    const year = parseInt(yearStr), week = parseInt(wStr);
+    const jan4 = new Date(year, 0, 4);
+    const monday = new Date(jan4);
+    monday.setDate(jan4.getDate() - (jan4.getDay() + 6) % 7 + (week - 1) * 7);
+    return monday;
+  }
+
+  // Format as "Week of March 23rd – 29th" (or "March 30th – April 5th")
+  function formatWeekDisplay(wv) {
+    if (!wv) return '';
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    function ordinal(n) {
+      const v = n % 100;
+      return n + (['th','st','nd','rd'][(v - 20) % 10] || ['th','st','nd','rd'][v] || 'th');
+    }
+    const mon = weekValueToMonday(wv);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const mMon = months[mon.getMonth()], mSun = months[sun.getMonth()];
+    const dMon = ordinal(mon.getDate()), dSun = ordinal(sun.getDate());
+    return mMon === mSun
+      ? `Week of ${mMon} ${dMon} – ${dSun}`
+      : `Week of ${mMon} ${dMon} – ${mSun} ${dSun}`;
   }
 
   // Default to current week's Monday
@@ -1019,8 +1109,10 @@ function saveCb() { localStorage.setItem('careplan_mon_cb', JSON.stringify(check
 
   if (saved.day) dayEl.value = saved.day;
   datesEl.value = saved.weekValue || toWeekValue(thisMonday);
+  displayEl.textContent = formatWeekDisplay(datesEl.value);
 
   function saveMeta() {
+    displayEl.textContent = formatWeekDisplay(datesEl.value);
     localStorage.setItem('careplan_meta', JSON.stringify({ day: dayEl.value, weekValue: datesEl.value }));
   }
   dayEl.addEventListener('change', saveMeta);
@@ -1235,6 +1327,11 @@ function renderChecklist() {
 
       // Edit mode controls in header
       if (editMode) {
+        roomTag.title = 'Tap to edit room number';
+        roomTag.style.cursor = 'pointer';
+        roomTag.style.textDecoration = 'underline dotted';
+        roomTag.addEventListener('click', e => { e.stopPropagation(); editRoom(r.room); });
+
         const priorityBtn = document.createElement('button');
         priorityBtn.className = 'priority-toggle-btn' + (r.priority ? ' on' : '');
         priorityBtn.textContent = r.priority ? '★ Priority' : '☆ Priority';
